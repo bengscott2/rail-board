@@ -1,9 +1,12 @@
 const http = require("http");
 const https = require("https");
+const dotenv = require("dotenv");
 
 // Load environment variables
+dotenv.config();
 const RTT_USERNAME = process.env.RTT_USERNAME;
 const RTT_PASSWORD = process.env.RTT_PASSWORD;
+console.log(RTT_USERNAME, RTT_PASSWORD);
 
 const server = http.createServer((req, res) => {
   // Enable CORS

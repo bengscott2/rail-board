@@ -1,0 +1,22 @@
+{
+  "name": "rail-board",
+  "version": "1.0.0",
+  "description": "A real-time train departure board display for UK railway stations, styled to look like classic station departure boards with yellow text on black background.",
+  "main": "train-proxy-server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bengscott2/rail-board.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bengscott2/rail-board/issues"
+  },
+  "homepage": "https://github.com/bengscott2/rail-board#readme",
+  "dependencies": {
+    "dotenv": "^17.2.3"
+  }
+}

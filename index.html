@@ -26,7 +26,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-      const { useState, useEffect } = React;
+      const { useState, useEffect, useRef } = React;
 
       function TrainBoard() {
         const [currentTime, setCurrentTime] = useState(new Date());
@@ -34,6 +34,11 @@
         const [trainData, setTrainData] = useState({});
         const [loading, setLoading] = useState(true);
         const [error, setError] = useState(null);
+
+        // Touch swipe handling
+        const touchStartX = useRef(0);
+        const touchEndX = useRef(0);
+        const rotateTimerRef = useRef(null);
 
         // No credentials needed here - handled by proxy server
 
@@ -83,11 +88,60 @@
 
         // Rotate between stations every 10 seconds
         useEffect(() => {
-          const rotateTimer = setInterval(() => {
-            setActiveStation((prev) => (prev + 1) % stations.length);
-          }, 10000);
-          return () => clearInterval(rotateTimer);
+          const startRotation = () => {
+            if (rotateTimerRef.current) {
+              clearInterval(rotateTimerRef.current);
+            }
+            rotateTimerRef.current = setInterval(() => {
+              setActiveStation((prev) => (prev + 1) % stations.length);
+            }, 10000);
+          };
+
+          startRotation();
+          return () => {
+            if (rotateTimerRef.current) {
+              clearInterval(rotateTimerRef.current);
+            }
+          };
         }, []);
+
+        // Handle swipe gestures
+        const handleTouchStart = (e) => {
+          touchStartX.current = e.touches[0].clientX;
+        };
+
+        const handleTouchMove = (e) => {
+          touchEndX.current = e.touches[0].clientX;
+        };
+
+        const handleTouchEnd = () => {
+          const swipeThreshold = 50; // minimum distance for a swipe
+          const diff = touchStartX.current - touchEndX.current;
+
+          if (Math.abs(diff) > swipeThreshold) {
+            // Reset auto-rotation timer
+            if (rotateTimerRef.current) {
+              clearInterval(rotateTimerRef.current);
+            }
+            rotateTimerRef.current = setInterval(() => {
+              setActiveStation((prev) => (prev + 1) % stations.length);
+            }, 10000);
+
+            // Swipe left - go to next station
+            if (diff > 0) {
+              setActiveStation((prev) => (prev + 1) % stations.length);
+            }
+            // Swipe right - go to previous station
+            else {
+              setActiveStation((prev) =>
+                prev === 0 ? stations.length - 1 : prev - 1
+              );
+            }
+          }
+
+          touchStartX.current = 0;
+          touchEndX.current = 0;
+        };
 
         const currentStation = stations[activeStation];
         const currentData = trainData[currentStation?.crs];
@@ -161,7 +215,12 @@
         const trains = getTrainServices();
 
         return (
-          <div className="min-h-screen bg-black flex items-center justify-center p-4">
+          <div
+            className="min-h-screen bg-black flex items-center justify-center p-4"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <div className="w-full max-w-4xl">
               <div className="bg-gray-900 p-6 rounded-lg shadow-2xl">
                 <div className="bg-black p-4 rounded border-2 border-gray-800">
