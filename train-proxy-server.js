@@ -21,15 +21,26 @@ const server = http.createServer((req, res) => {
   }
 
   // Extract station code from URL like /api/BCY
-  const match = req.url.match(/^\/api\/([A-Z]{3})$/);
+  const stationMatch = req.url.match(/^\/api\/([A-Z]{3})$/);
+  // Extract service detail from URL like /api/service/serviceUid/YYYY/MM/DD
+  const serviceMatch = req.url.match(
+    /^\/api\/service\/([^/]+)\/(\d{4})\/(\d{2})\/(\d{2})$/
+  );
 
-  if (!match) {
+  let apiPath;
+
+  if (stationMatch) {
+    const stationCode = stationMatch[1];
+    apiPath = `/api/v1/json/search/${stationCode}`;
+  } else if (serviceMatch) {
+    const [, serviceUid, year, month, day] = serviceMatch;
+    apiPath = `/api/v1/json/service/${serviceUid}/${year}/${month}/${day}`;
+  } else {
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Invalid endpoint" }));
     return;
   }
 
-  const stationCode = match[1];
   const auth = Buffer.from(`${RTT_USERNAME}:${RTT_PASSWORD}`).toString(
     "base64"
   );
@@ -37,7 +48,7 @@ const server = http.createServer((req, res) => {
   // Proxy request to Realtime Trains API
   const options = {
     hostname: "api.rtt.io",
-    path: `/api/v1/json/search/${stationCode}`,
+    path: apiPath,
     method: "GET",
     headers: {
       Authorization: `Basic ${auth}`,

@@ -131,6 +131,8 @@
         const [loading, setLoading] = useState(true);
         const [error, setError] = useState(null);
         const [slideDirection, setSlideDirection] = useState("");
+        const [selectedTrain, setSelectedTrain] = useState(null);
+        const [showModal, setShowModal] = useState(false);
 
         // Touch swipe handling
         const touchStartX = useRef(0);
@@ -289,9 +291,72 @@
               destination: destination,
               plat: platform,
               expected: expected,
+              serviceData: service, // Keep full service object for calling points
             };
           });
         };
+
+        // Handle train click to show calling points
+        const handleTrainClick = async (e, train) => {
+          // Stop event propagation to prevent swipe handler from triggering
+          e.stopPropagation();
+
+          // Pause auto-rotation while modal is open
+          if (rotateTimerRef.current) {
+            clearInterval(rotateTimerRef.current);
+          }
+
+          // First show the modal with basic info
+          setSelectedTrain(train.serviceData);
+          setShowModal(true);
+
+          // Fetch detailed service information with all calling points
+          try {
+            const service = train.serviceData;
+            const serviceUid = service.serviceUid;
+            const runDate = service.runDate;
+
+            if (serviceUid && runDate) {
+              // runDate is in format YYYY-MM-DD
+              const [year, month, day] = runDate.split("-");
+              const response = await fetch(
+                `http://localhost:3000/api/service/${serviceUid}/${year}/${month}/${day}`
+              );
+
+              if (response.ok) {
+                const detailedData = await response.json();
+                // Update with detailed service data
+                setSelectedTrain(detailedData);
+              }
+            }
+          } catch (err) {
+            console.error("Failed to fetch service details:", err);
+            // Keep showing basic info if detailed fetch fails
+          }
+        };
+
+        // Handle modal close
+        const handleCloseModal = () => {
+          setShowModal(false);
+          setSelectedTrain(null);
+          // Resume auto-rotation
+          rotateTimerRef.current = setInterval(() => {
+            setSlideDirection("slide-in-right");
+            setActiveStation((prev) => (prev + 1) % stations.length);
+          }, 10000);
+        };
+
+        // Handle ESC key to close modal
+        useEffect(() => {
+          const handleEscape = (e) => {
+            if (e.key === "Escape" && showModal) {
+              handleCloseModal();
+            }
+          };
+
+          document.addEventListener("keydown", handleEscape);
+          return () => document.removeEventListener("keydown", handleEscape);
+        }, [showModal]);
 
         if (loading) {
           return (
@@ -409,7 +474,8 @@
                     trains.map((train, idx) => (
                       <div
                         key={idx}
-                        className="grid grid-cols-12 gap-2 py-2 border-b border-gray-800 hover:bg-yellow-900/10 train-row"
+                        className="grid grid-cols-12 gap-2 py-2 border-b border-gray-800 hover:bg-yellow-900/20 train-row cursor-pointer transition-transform hover:scale-[1.01]"
+                        onClick={(e) => handleTrainClick(e, train)}
                       >
                         <div
                           className="col-span-2 text-yellow-500 text-lg"
@@ -462,6 +528,234 @@
                 </div>
               </div>
             </div>
+
+            {/* Calling Points Modal */}
+            {showModal && selectedTrain && (
+              <div
+                className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 fade-in"
+                onClick={handleCloseModal}
+              >
+                <div
+                  className="bg-gray-900 p-6 rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="bg-black p-6 rounded border-2 border-gray-800">
+                    {/* Modal Header */}
+                    <div className="flex justify-between items-start mb-4 pb-3 border-b border-yellow-600/30">
+                      <div className="flex-1">
+                        <h2
+                          className="text-yellow-500 text-2xl font-bold tracking-wider mb-2"
+                          style={{ fontFamily: "monospace" }}
+                        >
+                          Train Details
+                        </h2>
+                        <div
+                          className="text-yellow-500 text-lg mb-1"
+                          style={{ fontFamily: "monospace" }}
+                        >
+                          {selectedTrain.locationDetail?.destination?.[0]
+                            ?.description ||
+                            selectedTrain.atocName ||
+                            "Unknown Destination"}
+                        </div>
+                        <div
+                          className="text-yellow-500 text-sm"
+                          style={{ fontFamily: "monospace" }}
+                        >
+                          Operator: {selectedTrain.atocName || "Unknown"}
+                          {selectedTrain.isCancelled && (
+                            <span className="ml-3 text-red-500 font-bold">
+                              CANCELLED
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleCloseModal}
+                        className="text-yellow-500 hover:text-yellow-400 text-3xl font-bold leading-none"
+                        style={{ fontFamily: "monospace" }}
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    {/* Calling Points */}
+                    <div>
+                      <h3
+                        className="text-yellow-500 text-xl font-bold mb-3"
+                        style={{ fontFamily: "monospace" }}
+                      >
+                        Calling Points
+                      </h3>
+
+                      {selectedTrain.locations &&
+                      selectedTrain.locations.length > 0 ? (
+                        <div className="space-y-2">
+                          {/* Column headers */}
+                          <div className="grid grid-cols-12 gap-2 pb-2 border-b border-yellow-600/30">
+                            <div
+                              className="col-span-6 text-yellow-500 font-bold text-sm"
+                              style={{ fontFamily: "monospace" }}
+                            >
+                              Station
+                            </div>
+                            <div
+                              className="col-span-2 text-yellow-500 font-bold text-sm"
+                              style={{ fontFamily: "monospace" }}
+                            >
+                              Arrive
+                            </div>
+                            <div
+                              className="col-span-2 text-yellow-500 font-bold text-sm"
+                              style={{ fontFamily: "monospace" }}
+                            >
+                              Depart
+                            </div>
+                            <div
+                              className="col-span-2 text-yellow-500 font-bold text-sm text-center"
+                              style={{ fontFamily: "monospace" }}
+                            >
+                              Platform
+                            </div>
+                          </div>
+
+                          {/* All locations from detailed service data */}
+                          {selectedTrain.locations.map((location, idx) => {
+                            const isOrigin = location.displayAs === "ORIGIN";
+                            const isDestination =
+                              location.displayAs === "DESTINATION";
+                            const isCancelled = location.isCancelled;
+
+                            return (
+                              <div
+                                key={idx}
+                                className={`grid grid-cols-12 gap-2 py-2 border-b border-gray-800 ${
+                                  isCancelled ? "opacity-50" : ""
+                                }`}
+                              >
+                                <div
+                                  className={`col-span-6 text-yellow-500 ${
+                                    isOrigin || isDestination ? "font-bold" : ""
+                                  }`}
+                                  style={{ fontFamily: "monospace" }}
+                                >
+                                  {location.description ||
+                                    location.locationName}
+                                  {isOrigin && (
+                                    <span className="ml-2 text-xs bg-yellow-900/30 px-2 py-0.5 rounded">
+                                      ORIGIN
+                                    </span>
+                                  )}
+                                  {isDestination && (
+                                    <span className="ml-2 text-xs bg-yellow-900/30 px-2 py-0.5 rounded">
+                                      DESTINATION
+                                    </span>
+                                  )}
+                                  {isCancelled && (
+                                    <span className="ml-2 text-xs bg-red-900/30 text-red-500 px-2 py-0.5 rounded">
+                                      CANCELLED
+                                    </span>
+                                  )}
+                                </div>
+                                <div
+                                  className="col-span-2 text-yellow-500"
+                                  style={{ fontFamily: "monospace" }}
+                                >
+                                  {location.gbttBookedArrival ||
+                                    location.publicArrival ||
+                                    (isOrigin ? "-" : "")}
+                                  {location.realtimeArrival &&
+                                    location.realtimeArrival !==
+                                      location.gbttBookedArrival && (
+                                      <div className="text-xs text-orange-400">
+                                        {location.realtimeArrival}
+                                      </div>
+                                    )}
+                                </div>
+                                <div
+                                  className="col-span-2 text-yellow-500"
+                                  style={{ fontFamily: "monospace" }}
+                                >
+                                  {location.gbttBookedDeparture ||
+                                    location.publicDeparture ||
+                                    (isDestination ? "-" : "")}
+                                  {location.realtimeDeparture &&
+                                    location.realtimeDeparture !==
+                                      location.gbttBookedDeparture && (
+                                      <div className="text-xs text-orange-400">
+                                        {location.realtimeDeparture}
+                                      </div>
+                                    )}
+                                </div>
+                                <div
+                                  className="col-span-2 text-yellow-500 text-center"
+                                  style={{ fontFamily: "monospace" }}
+                                >
+                                  {location.platform || "-"}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : selectedTrain.locationDetail?.destination ? (
+                        <div className="space-y-2">
+                          {/* Fallback to basic data if detailed service hasn't loaded yet */}
+                          <div className="grid grid-cols-12 gap-2 pb-2 border-b border-yellow-600/30">
+                            <div
+                              className="col-span-6 text-yellow-500 font-bold text-sm"
+                              style={{ fontFamily: "monospace" }}
+                            >
+                              Station
+                            </div>
+                            <div
+                              className="col-span-2 text-yellow-500 font-bold text-sm"
+                              style={{ fontFamily: "monospace" }}
+                            >
+                              Arrive
+                            </div>
+                            <div
+                              className="col-span-2 text-yellow-500 font-bold text-sm"
+                              style={{ fontFamily: "monospace" }}
+                            >
+                              Depart
+                            </div>
+                            <div
+                              className="col-span-2 text-yellow-500 font-bold text-sm text-center"
+                              style={{ fontFamily: "monospace" }}
+                            >
+                              Platform
+                            </div>
+                          </div>
+                          <div
+                            className="text-yellow-500 text-center py-4 text-sm"
+                            style={{ fontFamily: "monospace" }}
+                          >
+                            Loading calling points...
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className="text-yellow-500 text-center py-4"
+                          style={{ fontFamily: "monospace" }}
+                        >
+                          Calling point information not available
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer info */}
+                    <div className="mt-4 pt-3 border-t border-yellow-600/30">
+                      <div
+                        className="text-yellow-500 text-sm text-center"
+                        style={{ fontFamily: "monospace" }}
+                      >
+                        Click outside or press ESC to close
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
       }
