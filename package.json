@@ -4,7 +4,8 @@
   "description": "A real-time train departure board display for UK railway stations, styled to look like classic station departure boards with yellow text on black background.",
   "main": "train-proxy-server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node train-proxy-server.js & sleep 2 && DISPLAY=:0 chromium --kiosk --noerrdialogs --disable-infobars file:///home/ben/rail-board/index.html"
   },
   "repository": {
     "type": "git",
