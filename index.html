@@ -21,56 +21,30 @@
         overflow: hidden;
       }
 
-      @keyframes slideInFromRight {
+      @keyframes fadeIn {
         from {
-          transform: translateX(100%);
           opacity: 0;
         }
         to {
-          transform: translateX(0);
           opacity: 1;
         }
       }
 
-      @keyframes slideInFromLeft {
+      @keyframes fadeOut {
         from {
-          transform: translateX(-100%);
-          opacity: 0;
-        }
-        to {
-          transform: translateX(0);
-          opacity: 1;
-        }
-      }
-
-      @keyframes slideOutToLeft {
-        from {
-          transform: translateX(0);
           opacity: 1;
         }
         to {
-          transform: translateX(-100%);
           opacity: 0;
         }
       }
 
-      @keyframes slideOutToRight {
-        from {
-          transform: translateX(0);
-          opacity: 1;
-        }
-        to {
-          transform: translateX(100%);
-          opacity: 0;
-        }
+      .fade-in {
+        animation: fadeIn 0.4s ease-out forwards;
       }
 
-      .slide-in-right {
-        animation: slideInFromRight 0.4s ease-out forwards;
-      }
-
-      .slide-in-left {
-        animation: slideInFromLeft 0.4s ease-out forwards;
+      .fade-out {
+        animation: fadeOut 0.4s ease-out forwards;
       }
 
       .station-content {
@@ -88,19 +62,6 @@
 
       .train-row {
         transition: background-color 0.2s ease;
-      }
-
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
-
-      .fade-in {
-        animation: fadeIn 0.5s ease-in;
       }
 
       @keyframes pulse {
@@ -130,7 +91,7 @@
         const [trainData, setTrainData] = useState({});
         const [loading, setLoading] = useState(true);
         const [error, setError] = useState(null);
-        const [slideDirection, setSlideDirection] = useState("");
+        const [fadeDirection, setFadeDirection] = useState("");
         const [selectedTrain, setSelectedTrain] = useState(null);
         const [showModal, setShowModal] = useState(false);
 
@@ -185,14 +146,22 @@
           return () => clearInterval(interval);
         }, []);
 
-        // Rotate between stations every 10 seconds
+        // Rotate between stations every 10 seconds (but not when modal is open)
         useEffect(() => {
+          // Don't start rotation if modal is open
+          if (showModal) {
+            if (rotateTimerRef.current) {
+              clearInterval(rotateTimerRef.current);
+            }
+            return;
+          }
+
           const startRotation = () => {
             if (rotateTimerRef.current) {
               clearInterval(rotateTimerRef.current);
             }
             rotateTimerRef.current = setInterval(() => {
-              setSlideDirection("slide-in-right");
+              setFadeDirection("fade-in");
               setActiveStation((prev) => (prev + 1) % stations.length);
             }, 10000);
           };
@@ -203,28 +172,39 @@
               clearInterval(rotateTimerRef.current);
             }
           };
-        }, []);
+        }, [showModal]);
 
         // Clear animation class after animation completes
         useEffect(() => {
-          if (slideDirection) {
+          if (fadeDirection) {
             const timer = setTimeout(() => {
-              setSlideDirection("");
+              setFadeDirection("");
             }, 400); // Match animation duration
             return () => clearTimeout(timer);
           }
-        }, [slideDirection]);
+        }, [fadeDirection]);
 
         // Handle swipe gestures
         const handleTouchStart = (e) => {
+          // Don't process swipes when modal is open
+          if (showModal) return;
           touchStartX.current = e.touches[0].clientX;
         };
 
         const handleTouchMove = (e) => {
+          // Don't process swipes when modal is open
+          if (showModal) return;
           touchEndX.current = e.touches[0].clientX;
         };
 
         const handleTouchEnd = () => {
+          // Don't process swipes when modal is open
+          if (showModal) {
+            touchStartX.current = 0;
+            touchEndX.current = 0;
+            return;
+          }
+
           const swipeThreshold = 50; // minimum distance for a swipe
           const diff = touchStartX.current - touchEndX.current;
 
@@ -234,18 +214,18 @@
               clearInterval(rotateTimerRef.current);
             }
             rotateTimerRef.current = setInterval(() => {
-              setSlideDirection("slide-in-right");
+              setFadeDirection("fade-in");
               setActiveStation((prev) => (prev + 1) % stations.length);
             }, 10000);
 
             // Swipe left - go to next station
             if (diff > 0) {
-              setSlideDirection("slide-in-right");
+              setFadeDirection("fade-in");
               setActiveStation((prev) => (prev + 1) % stations.length);
             }
             // Swipe right - go to previous station
             else {
-              setSlideDirection("slide-in-left");
+              setFadeDirection("fade-in");
               setActiveStation((prev) =>
                 prev === 0 ? stations.length - 1 : prev - 1
               );
@@ -301,12 +281,7 @@
           // Stop event propagation to prevent swipe handler from triggering
           e.stopPropagation();
 
-          // Pause auto-rotation while modal is open
-          if (rotateTimerRef.current) {
-            clearInterval(rotateTimerRef.current);
-          }
-
-          // First show the modal with basic info
+          // Show the modal with basic info (useEffect will pause auto-rotation)
           setSelectedTrain(train.serviceData);
           setShowModal(true);
 
@@ -339,11 +314,7 @@
         const handleCloseModal = () => {
           setShowModal(false);
           setSelectedTrain(null);
-          // Resume auto-rotation
-          rotateTimerRef.current = setInterval(() => {
-            setSlideDirection("slide-in-right");
-            setActiveStation((prev) => (prev + 1) % stations.length);
-          }, 10000);
+          // useEffect will automatically resume auto-rotation
         };
 
         // Handle ESC key to close modal
@@ -400,7 +371,7 @@
             <div className="w-full max-w-4xl">
               <div className="bg-gray-900 p-6 rounded-lg shadow-2xl">
                 <div
-                  className={`bg-black p-4 rounded border-2 border-gray-800 station-content ${slideDirection}`}
+                  className={`bg-black p-4 rounded border-2 border-gray-800 station-content ${fadeDirection}`}
                 >
                   {/* Header with station name */}
                   <div className="flex justify-between items-center mb-4 pb-3 border-b border-yellow-600/30">
@@ -476,6 +447,9 @@
                         key={idx}
                         className="grid grid-cols-12 gap-2 py-2 border-b border-gray-800 hover:bg-yellow-900/20 train-row cursor-pointer transition-transform hover:scale-[1.01]"
                         onClick={(e) => handleTrainClick(e, train)}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchMove={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
                       >
                         <div
                           className="col-span-2 text-yellow-500 text-lg"
